@@ -1401,6 +1401,12 @@ public class ItemImport
                                 + "\tAssetstore: " + iAssetstore
                                 + "\tBundle: " + sBundle
                                 + "\tDescription: " + sDescription);
+
+                        // line starts with "-r -s n -f filepath", we are interested in the subline starting w/ filename
+                        if (line.indexOf(" -f ") != -1) {
+                            int idx = line.indexOf(" -f ");
+                            options.add(line.substring(idx + 4));
+                        }
                         continue;				// process next line in contents file
                     }
 
@@ -1805,7 +1811,7 @@ public class ItemImport
                 Bitstream[] bitstreams = myItem.getNonInternalBitstreams();
                 for (int j = 0; j < bitstreams.length && notfound; j++)
                 {
-                    if (bitstreams[j].getName().equals(bitstreamName))
+                    if (bitstreamName.indexOf(bitstreams[j].getName()) > -1)
                     {
                         bs = bitstreams[j];
                         notfound = false;
