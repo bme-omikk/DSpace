@@ -66,6 +66,7 @@ public class GoogleMetadata
 
     protected final String AUTHORS = "citation_author";
 
+    // superseded by citation_publication_date, but will be used as its fallback. See DS-4518
     protected final String DATE = "citation_date";
 
     protected final String PUBLICATION_DATE = "citation_publication_date";
@@ -182,6 +183,15 @@ public class GoogleMetadata
             }
         }
 
+        if (!googleScholarSettings.containsKey(PUBLICATION_DATE))
+        {
+            log.warning("Google Metadata configuration not found for key "
+                     + GOOGLE_PREFIX + "." + PUBLICATION_DATE + ". "
+                     + "DSpace will fall back to use settings for key (if present) "
+                     + GOOGLE_PREFIX + "." + DATE + ". "
+                     + "Consider upgrading your DSpace configuration.");
+        }
+
         if (log.isDebugEnabled())
         {
             logConfiguration();
@@ -235,7 +245,15 @@ public class GoogleMetadata
 
         if (null == config || config.equals(""))
         {
-            return false;
+            // if PUBLICATION_DATE is not configured, we will fall back to DATE instead
+            if (PUBLICATION_DATE.equals(fieldName)) {
+                config = googleScholarSettings.get(DATE);
+            }
+
+            if (null == config || config.equals(""))
+            {
+                return false;
+            }
         }
 
         if (log.isDebugEnabled())
@@ -666,9 +684,6 @@ public class GoogleMetadata
         // AUTHORS (multi)
         addMultipleValues(AUTHORS);
 
-        // DATE
-        addSingleField(DATE);
-
         // PUBLICATION_DATE
         addSingleField(PUBLICATION_DATE);
 
@@ -832,19 +847,11 @@ public class GoogleMetadata
     }
 
     /**
-     * @return the citation_date
+     * @return the citation_publication_date
      */
     public List<String> getDate()
     {
-        if (metadataMappings.containsKey(DATE)) {
-            return metadataMappings.get(DATE);
-        }
-        else if (metadataMappings.containsKey(PUBLICATION_DATE)) {
-            return metadataMappings.get(PUBLICATION_DATE);
-        }
-        else {
-            return null;
-        }
+        return metadataMappings.get(PUBLICATION_DATE);
     }
 
     /**
