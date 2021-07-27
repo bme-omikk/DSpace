@@ -71,6 +71,8 @@ public class GoogleMetadata
 
     protected final String PUBLICATION_DATE = "citation_publication_date";
 
+    protected final String ONLINE_DATE = "citation_online_date";
+
     protected final String VOLUME = "citation_volume";
 
     protected final String ISSUE = "citation_issue";
@@ -687,6 +689,9 @@ public class GoogleMetadata
         // PUBLICATION_DATE
         addSingleField(PUBLICATION_DATE);
 
+        // ONLINE_DATE
+        addSingleField(ONLINE_DATE);
+
         // ISSN
         addSingleField(ISSN);
 
@@ -852,6 +857,14 @@ public class GoogleMetadata
     public List<String> getDate()
     {
         return metadataMappings.get(PUBLICATION_DATE);
+    }
+
+    /**
+     * @return the citation_online_date
+     */
+    public List<String> getOnlineDate()
+    {
+        return metadataMappings.get(ONLINE_DATE);
     }
 
     /**
