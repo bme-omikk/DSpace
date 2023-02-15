@@ -288,6 +288,9 @@ public class METSManifest
              * log.debug("Got METS DOCUMENT:");
              * log.debug(outputPretty.outputString(metsDocument));
              ****/
+             XMLOutputter outputPretty = new XMLOutputter(Format.getPrettyFormat());
+             log.info("Got METS DOCUMENT:");
+             log.info(outputPretty.outputString(metsDocument));
         }
         catch (JDOMException je)
         {
@@ -837,6 +840,7 @@ public class METSManifest
             log.debug("Got getObjStructDiv result=" + result.toString());
         }
         
+            log.info("Got getObjStructDiv result=" + result.toString());
         return (Element)result;
     }
 
@@ -1079,12 +1083,14 @@ public class METSManifest
         // div@ADMID is actually IDREFS, a space-separated list of IDs:
         Element objDiv = getObjStructDiv();
         String amds = objDiv.getAttributeValue("ADMID");
+        log.info("HELLO::getItemRightsMD");
         if (amds == null)
         {
             if (log.isDebugEnabled())
             {
                 log.debug("getItemRightsMD: No ADMID references found.");
             }
+            log.info("getItemRightsMD: No ADMID references found.");
             return new Element[0];
         }
         String amdID[] = amds.split("\\s+");
@@ -1097,6 +1103,9 @@ public class METSManifest
             {
                 resultList.addAll(rmds);
             }
+        }
+        for (Element e : resultList) {
+            log.info("HELLO::resultList: " + e.getText());
         }
         return resultList.toArray(new Element[resultList.size()]);
     }
@@ -1144,6 +1153,7 @@ public class METSManifest
     {
         for (String amdID : getAmdIDs())
         {
+            log.info("HELLO::crosswalkObjectOtherAdminMD: amndID is " + amdID);
             Element amdSec = getElementByXPath("mets:amdSec[@ID=\""+amdID+"\"]", false);
             for (Iterator ti = amdSec.getChildren("techMD", metsNS).iterator(); ti.hasNext();)
             {
@@ -1155,6 +1165,7 @@ public class METSManifest
             }
             for (Iterator ti = amdSec.getChildren("rightsMD", metsNS).iterator(); ti.hasNext();)
             {
+                log.info("HELLO::crosswalkOtherAdminMD:strat crosswalkXmd with rightsMD");
                 crosswalkXmd(context, params, dso, (Element)ti.next(), callback, false);
             }
         }
@@ -1183,7 +1194,9 @@ public class METSManifest
 
         for (String amdID : getAmdIDs())
         {
+            log.info("HELLO::crosswalkObjectSourceMD: amndID is " + amdID);
             Element amdSec = getElementByXPath("mets:amdSec[@ID=\""+amdID+"\"]", false);
+            log.info("HELLO::amdSec: " + amdSec.toString());
             for (Iterator ti = amdSec.getChildren("sourceMD", metsNS).iterator(); ti.hasNext();)
             {
                 crosswalkXmd(context, params, dso, (Element)ti.next(), callback, false);
@@ -1205,12 +1218,18 @@ public class METSManifest
         // div@ADMID is actually IDREFS, a space-separated list of IDs:
         Element objDiv = getObjStructDiv();
         String amds = objDiv.getAttributeValue("ADMID");
+        log.info("HELLO::getAmdIDs:ID: " + objDiv.getAttributeValue("ID"));
+        log.info("HELLO::getAmdIDs:ADMID: " + objDiv.getAttributeValue("ADMID"));
+        log.info("HELLO::getAmdIDs:DMDID: " + objDiv.getAttributeValue("DMDID"));
+        log.info("HELLO::getAmdIDs:TYPE: " + objDiv.getAttributeValue("TYPE"));
+        log.info("HELLO::getAmdIDs: " + amds);
         if (amds == null)
         {
             if (log.isDebugEnabled())
             {
                 log.debug("crosswalkObjectTechMD: No ADMID references found.");
             }
+            log.info("crosswalkObjectTechMD: No ADMID references found.");
             return new String[0];
         }
         return amds.split("\\s+");

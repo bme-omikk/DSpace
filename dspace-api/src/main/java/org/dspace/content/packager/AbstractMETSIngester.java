@@ -120,7 +120,7 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
 
         private PackageParameters params;
 
-        // constructor initializes from package file
+        // constructor intializes from package file
         private MdrefManager(File packageFile, PackageParameters params)
         {
             super();
@@ -321,18 +321,21 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
 
         // parsed out METS Manifest from the file.
         METSManifest manifest = null;
+        log.info("HELLO::parsePackage");
 
         // try to locate the METS Manifest in package
         // 1. read "package" stream: it will be either bare Manifest
         // or Package contents into bitstreams, depending on params:
         if (params.getBooleanProperty("manifestOnly", false))
         {
+            log.info("HELLO::parsePackage manifestOnly");
             // parse the bare METS manifest and sanity-check it.
             manifest = METSManifest.create(new FileInputStream(pkgFile),
                     validate, getConfigurationName());
         }
         else
         {
+            log.info("HELLO::parsePackage Zip package");
             try(ZipFile zip = new ZipFile(pkgFile))
             {
                 // Retrieve the manifest file entry (named mets.xml)
@@ -598,6 +601,7 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
             AuthorizeException, CrosswalkException,
             MetadataValidationException, PackageValidationException
     {
+        log.info("HELLO::replaceObject: " + dso.getType());
         // -- Step 1 --
         // Before going forward with the replace, let's verify these objects are
         // of the same TYPE! (We don't want to go around trying to replace a
@@ -619,6 +623,9 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
                     + ") is " + Constants.typeText[dso.getType()] + " id="
                     + dso.getID());
         }
+            log.info("Object to be replaced (handle=" + dso.getHandle()
+                    + ") is " + Constants.typeText[dso.getType()] + " id="
+                    + dso.getID());
 
         // -- Step 2 --
         // Clear out current object (as we are replacing all its contents &
@@ -875,6 +882,8 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
             }
             else
             {
+                log.info("HELLO::addBitstream:bundleName: " + bundleName); 
+                log.info("HELLO::addBitstream:bundle: " + mfile.toString());
                 bundle = bundleService.create(context, item, bundleName);
             }
 
@@ -1153,6 +1162,7 @@ public abstract class AbstractMETSIngester extends AbstractPackageIngester
                                 + ").  Package is unacceptable!");
             }
 
+            log.info("HELLO::dsoToReplace: " + dsoToReplace.getName());
             // It's possible that the object to replace will be passed in as
             // null.  Let's determine the handle of the object to replace.
             if (dsoToReplace == null)

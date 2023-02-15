@@ -28,6 +28,15 @@
     </properties>
 
     <build>
+	    <extensions>
+		                <extension>
+					                <!-- Allows us to download Ruby gems -->
+					                <!-- See https://github.com/jruby/mavengem -->
+					                <groupId>org.torquebox.mojo</groupId>
+							                <artifactId>mavengem-wagon</artifactId>
+									                <version>1.0.3</version>
+											            </extension>
+												            </extensions>
         <!-- Centrally manage the versions of all plugins used below -->
         <pluginManagement>
             <plugins>
@@ -278,6 +287,28 @@
                     <value>true</value>
                 </property>
             </activation>
+            <repositories>
+                <repository>
+                    <!--id>rubygems-release</id>
+                    <url>http://rubygems-proxy.torquebox.org/releases</url-->
+		    <id>mavengems</id>
+		                        <url>mavengem:https://rubygems.org</url>
+                </repository>
+            </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>rubygems</groupId>
+                    <artifactId>sass</artifactId>
+                    <version>${sass.version}</version>
+                    <type>gem</type>
+                </dependency>
+                <dependency>
+                    <groupId>rubygems</groupId>
+                    <artifactId>compass</artifactId>
+                    <version>${compass.version}</version>
+                    <type>gem</type>
+                </dependency>
+            </dependencies>
             <build>
                 <!-- Centrally manage the versions of all plugins used by this profile -->
                 <pluginManagement>

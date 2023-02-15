@@ -83,6 +83,7 @@ public class SwordMETSContentIngester extends AbstractSwordContentIngester
             WorkspaceItem wsi = workspaceItemService
                     .create(context, collection, true);
             Item item = wsi.getItem();
+            log.info("HELLO::ingestCollection wsi.getItem: " + item.getName());
 
             // need to add a licence file, otherwise the METS replace function raises a NullPointerException
             String licence = collectionService.getLicense(collection);
@@ -153,6 +154,7 @@ public class SwordMETSContentIngester extends AbstractSwordContentIngester
 
             // get reference to item so that we can report on it
             Item installedItem = (Item) ingestedObject;
+            log.info("HELLO::ingestToCollection ingestedObject: " + ingestedObject.getName());
 
             // update the item metadata to inclue the current time as
             // the updated date
