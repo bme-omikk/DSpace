@@ -9,6 +9,7 @@ package org.dspace.authorize;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
 import org.dspace.authorize.service.AuthorizeService;
 import org.dspace.authorize.service.ResourcePolicyService;
 import org.dspace.content.*;
@@ -57,6 +58,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
     @Autowired(required = true)
     protected WorkflowItemService workflowItemService;
 
+    private static Logger log = Logger.getLogger(Bundle.class);
     protected AuthorizeServiceImpl()
     {
 
@@ -237,6 +239,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
         {
             return false;
         }
+        log.info("HELLO::dso is not null: " + o.getName());
 
         // is authorization disabled for this context?
         if (c.ignoreAuthorization())
@@ -244,11 +247,13 @@ public class AuthorizeServiceImpl implements AuthorizeService
             return true;
         }
 
+        log.info("HELLO::ignoreAuthorization is false");
         // If authorization was given before and cached
         Boolean cachedResult = c.getCachedAuthorizationResult(o, action, e);
         if (cachedResult != null) {
             return cachedResult.booleanValue();
         }
+        log.info("HELLO::cachedResult is null");
 
         // is eperson set? if not, userToCheck = null (anonymous)
         EPerson userToCheck = null;
@@ -256,6 +261,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
         {
             userToCheck = e;
 
+            log.info("HELLO::authorize:userToCheck: " + e.getName());
             // perform isAdmin check to see
             // if user is an Admin on this object
             DSpaceObject adminObject = useInheritance ? serviceFactory.getDSpaceObjectService(o).getAdminObject(c, o, action) : null;
@@ -265,6 +271,8 @@ public class AuthorizeServiceImpl implements AuthorizeService
                 c.cacheAuthorizedAction(o, action, e, true, null);
                 return true;
             }
+
+            log.info("HELLO::user is not an admin");
         }
 
         // In case the dso is an bundle or bitstream we must ignore custom
@@ -275,6 +283,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
         boolean ignoreCustomPolicies = false;
         if (o instanceof Bitstream)
         {
+            log.info("HELLO::dso is bitstream");
             Bitstream b = (Bitstream) o;
 
             // Ensure that this is not a collection or community logo
@@ -286,10 +295,12 @@ public class AuthorizeServiceImpl implements AuthorizeService
         }
         if (o instanceof Bundle)
         {
+            log.info("HELLO::dso is a bundle");
             ignoreCustomPolicies = !isAnyItemInstalled(c, Arrays.asList(((Bundle) o)));
         }
         if (o instanceof Item)
         {
+            log.info("HELLO::dso is an item");
             if (workspaceItemService.findByItem(c, (Item) o) != null ||
                     workflowItemService.findByItem(c, (Item) o) != null)
             {
@@ -301,6 +312,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
         for (ResourcePolicy rp : getPoliciesActionFilter(c, o, action))
         {
 
+            log.info("HELLO::ResourcePolicy found" + rp.toString());
             if (ignoreCustomPolicies
                     && ResourcePolicy.TYPE_CUSTOM.equals(rp.getRpType()))
             {
@@ -315,19 +327,32 @@ public class AuthorizeServiceImpl implements AuthorizeService
             // check policies for date validity
             if (resourcePolicyService.isDateValid(rp))
             {
+                log.info("HELLO::rp date is valid");
                 if (rp.getEPerson() != null && rp.getEPerson().equals(userToCheck))
                 {
+                    log.info("HELLO::rp eperson is " + rp.getEPerson().getName());
+                    log.info("HELLO::" + o.getName());
                     c.cacheAuthorizedAction(o, action, e, true, rp);
                     return true; // match
+                }
+                else {
+                    log.info("HELLO::rp eperson is null");
+                    log.info("HELLO::" + o.getName());
                 }
 
                 if ((rp.getGroup() != null)
                         && (groupService.isMember(c, e, rp.getGroup())))
                 {
+                    log.info("HELLO::rp group is " + rp.getGroup().getName());
+                    log.info("HELLO::" + o.getName());
                     // group was set, and eperson is a member
                     // of that group
                     c.cacheAuthorizedAction(o, action, e, true, rp);
                     return true;
+                }
+                else {
+                    log.info("HELLO::rp group is null");
+                    log.info("HELLO::" + o.getName());
                 }
             }
 
@@ -572,6 +597,7 @@ public class AuthorizeServiceImpl implements AuthorizeService
     public List<ResourcePolicy> getPoliciesActionFilter(Context c, DSpaceObject o,
                                                                int actionID) throws SQLException
     {
+        log.info("HELLO::searching for " + actionID);
         return resourcePolicyService.find(c, o, actionID);
     }
 

@@ -185,7 +185,9 @@ public class DSpaceMETSIngester
     {
         if (PackageUtils.findDepositLicense(context, item) == null)
         {
+            //context.turnOffAuthorisationSystem();
             PackageUtils.addDepositLicense(context, license, item, collection);
+            //context.restoreAuthSystemState();
         }
     }
 

@@ -104,6 +104,9 @@ public class BitstreamStorageServiceImpl implements BitstreamStorageService, Ini
         bitstream.setStoreNumber(incoming);
         
         //For efficiencies sake, PUT is responsible for setting bitstream size_bytes, checksum, and checksum_algorithm
+        log.info("HELLO::store:incoming/is " + incoming + ":" + is.toString());
+        log.info("HELLO::stores:");
+        this.printStores(context);
         stores.get(incoming).put(bitstream, is);
         //bitstream.setSizeBytes(file.length());
         //bitstream.setChecksum(Utils.toHex(dis.getMessageDigest().digest()));
