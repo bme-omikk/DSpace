@@ -257,6 +257,10 @@ public class PasswordAuthentication
         return "password";
     }
 
+    @Override
+    public String logoutPageURL(Context context, HttpServletRequest request, HttpServletResponse response) {
+        return null;
+    }
 
     @Override
     public boolean isUsed(final Context context, final HttpServletRequest request) {

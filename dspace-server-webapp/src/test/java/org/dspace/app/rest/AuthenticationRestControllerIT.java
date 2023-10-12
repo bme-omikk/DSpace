@@ -1372,6 +1372,108 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
     }
 
     @Test
+    public void testShibbolethLogoutURLWithServerURL() throws Exception {
+        context.turnOffAuthorisationSystem();
+        // Enable Shibboleth login
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", SHIB_ONLY);
+        configurationService.setProperty("dspace.server.url", "http://localhost:8080/server");
+        configurationService.setProperty("authentication-shibboleth.lazysession.logouturl",
+                "http://shibboleth.org/Shibboleth.sso/Logout");
+
+        context.restoreAuthSystemState();
+
+        // Simulate that a shibboleth authentication has happened to grab a token
+        String token = getClient()
+                .perform(post("/api/authn/login").requestAttr("SHIB-MAIL", eperson.getEmail())
+                        .requestAttr("SHIB-SCOPED-AFFILIATION", "faculty;staff"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(AUTHORIZATION_HEADER);
+
+        // Logout and Validate if it has a 30X code and has a redirect page
+        getClient(token).perform(get("/api/authn/logout")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("http://shibboleth.org/Shibboleth.sso/Logout"));
+    }
+
+    @Test
+    public void testShibbolethLogoutInvalidatesToken() throws Exception {
+        context.turnOffAuthorisationSystem();
+        // Enable Shibboleth login
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", SHIB_ONLY);
+        configurationService.setProperty("dspace.server.url", "http://localhost:8080/server");
+        configurationService.setProperty("authentication-shibboleth.lazysession.logouturl",
+                "http://shibboleth.org/Shibboleth.sso/Logout");
+
+        context.restoreAuthSystemState();
+
+        // Simulate that a shibboleth authentication has happened to grab a token
+        String token = getClient()
+                .perform(post("/api/authn/login").requestAttr("SHIB-MAIL", eperson.getEmail())
+                        .requestAttr("SHIB-SCOPED-AFFILIATION", "faculty;staff"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(AUTHORIZATION_HEADER);
+
+        // Logout and Validate if it has a 30X code and has a redirect page
+        getClient(token).perform(get("/api/authn/logout")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("http://shibboleth.org/Shibboleth.sso/Logout"));
+
+        // Validate if the session token is invalid after logout
+        getClient(token).perform(get("/api/authn/status")).andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.okay", is(true))).andExpect(jsonPath("$.authenticated", is(false)))
+                .andExpect(jsonPath("$.type", is("status")));
+    }
+
+    @Test
+    public void testShibbolethLogoutWithActionAndReturnParams() throws Exception {
+        context.turnOffAuthorisationSystem();
+        // Enable Shibboleth login
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", SHIB_ONLY);
+        configurationService.setProperty("dspace.server.url", "http://localhost:8080/server");
+        configurationService.setProperty("authentication-shibboleth.lazysession.logouturl",
+                "http://shibboleth.org/Shibboleth.sso/Logout");
+
+        context.restoreAuthSystemState();
+
+        // Simulate that a shibboleth authentication has happened to grab a token
+        String token = getClient()
+                .perform(post("/api/authn/login").requestAttr("SHIB-MAIL", eperson.getEmail())
+                        .requestAttr("SHIB-SCOPED-AFFILIATION", "faculty;staff"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(AUTHORIZATION_HEADER);
+
+        // Logout and Validate if it has a 30X code and has a redirect page to the return param
+        getClient(token)
+                .perform(get("/api/authn/logout")
+                        .param("action", "logout")
+                        .param("return", "http://localhost:8080/server/logout"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("http://localhost:8080/server/logout"));
+    }
+
+    @Test(expected = javax.servlet.ServletException.class)
+    public void testShibbolethLogoutWithInvalidReturnParam() throws Exception {
+        context.turnOffAuthorisationSystem();
+        // Enable Shibboleth login
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", SHIB_ONLY);
+        configurationService.setProperty("dspace.server.url", "http://localhost:8080/server");
+        configurationService.setProperty("authentication-shibboleth.lazysession.logouturl",
+                "http://shibboleth.org/Shibboleth.sso/Logout");
+
+        context.restoreAuthSystemState();
+
+        // Simulate that a shibboleth authentication has happened to grab a token
+        String token = getClient()
+                .perform(post("/api/authn/login").requestAttr("SHIB-MAIL", eperson.getEmail())
+                        .requestAttr("SHIB-SCOPED-AFFILIATION", "faculty;staff"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(AUTHORIZATION_HEADER);
+
+        // This Logout should throw an exception
+        // since http://shibboleth.org/Shibboleth.sso/Logout has a different domain
+        getClient(token)
+                .perform(get("/api/authn/logout")
+                        .param("action", "logout")
+                        .param("return", "http://shibboleth.org/Shibboleth.sso/Logout"))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
     public void testShortLivedToken() throws Exception {
         String token = getAuthToken(eperson.getEmail(), password);
 

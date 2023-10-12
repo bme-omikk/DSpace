@@ -61,6 +61,9 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
     private CustomLogoutHandler customLogoutHandler;
 
     @Autowired
+    private CustomLogoutSuccessHandler customLogoutSuccessHandler;
+
+    @Autowired
     private AuthenticationService authenticationService;
 
     @Autowired
@@ -125,8 +128,11 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .addLogoutHandler(customLogoutHandler)
                 // Configure the logout entry point & require POST
                 .logoutRequestMatcher(new AntPathRequestMatcher("/api/authn/logout", HttpMethod.POST.name()))
-                // When logout is successful, return OK (204) status
-                .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
+                // Attach an handler for successful logout
+                // this it will control the return code and a Logout page
+                // When logout is successful and no redirect page it returns OK (204) status
+                // useful, for instance for shibboleth
+                .logoutSuccessHandler(customLogoutSuccessHandler)
                 // Everyone can call this endpoint
                 .permitAll()
             .and()

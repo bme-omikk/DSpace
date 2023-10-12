@@ -600,6 +600,11 @@ public class X509Authentication implements AuthenticationMethod {
     }
 
     @Override
+    public String logoutPageURL(Context context, HttpServletRequest request, HttpServletResponse response) {
+        return null;
+    }
+
+    @Override
     public boolean isUsed(final Context context, final HttpServletRequest request) {
         if (request != null &&
                 context.getCurrentUser() != null &&
