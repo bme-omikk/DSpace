@@ -13,10 +13,9 @@ public class CustomStatsSecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain customStatsFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/api/statistics/bydate", "/api/statistics/bycity")
+        http.securityMatcher("/api/statistics/**")
             .csrf(csrf -> csrf.ignoringRequestMatchers(
-                new AntPathRequestMatcher("/api/statistics/bydate"),
-                new AntPathRequestMatcher("/api/statistics/bycity")
+                new AntPathRequestMatcher("/api/statistics/**")
             ))
             .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
