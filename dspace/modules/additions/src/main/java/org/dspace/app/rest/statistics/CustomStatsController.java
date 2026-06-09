@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
@@ -12,6 +14,10 @@ import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.response.FacetField;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.RangeFacet;
+import org.dspace.content.Community;
+import org.dspace.content.factory.ContentServiceFactory;
+import org.dspace.content.service.CommunityService;
+import org.dspace.core.Context;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
 import org.springframework.http.MediaType;
@@ -26,6 +32,8 @@ public class CustomStatsController {
     
     private static final ConfigurationService configurationService
             = DSpaceServicesFactory.getInstance().getConfigurationService();
+    private static final CommunityService communityService
+            = ContentServiceFactory.getInstance().getCommunityService();
     
     private static final String SOLR_URL = configurationService.getProperty("solr.server") + "/statistics/";
     private static final String SEARCH_URL = configurationService.getProperty("solr.server") + "/"
@@ -218,10 +226,20 @@ public class CustomStatsController {
 
         try (SolrClient solr = new HttpSolrClient.Builder(SEARCH_URL).build()) {
             QueryResponse response = solr.query(query);
+
+            // Collect top-level community UUIDs to filter out sub-communities
+            Set<String> topLevelUuids;
+            try (Context ctx = new Context()) {
+                topLevelUuids = communityService.findAllTop(ctx).stream()
+                        .map(c -> c.getID().toString())
+                        .collect(Collectors.toSet());
+            }
+
             List<Map<String, Object>> communities = new ArrayList<>();
             FacetField facet = response.getFacetField("location.comm");
             if (facet != null) {
                 for (FacetField.Count c : facet.getValues()) {
+                    if (!topLevelUuids.contains(c.getName())) continue;
                     Map<String, Object> entry = new LinkedHashMap<>();
                     entry.put("uuid", c.getName());
                     entry.put("count", c.getCount());
