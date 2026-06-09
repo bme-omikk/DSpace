@@ -8,6 +8,7 @@ public class CustomStatsRequest {
     private String resourceType;
     private String searchType;
     private String keyword;
+    private int year;
 
     public String getFromdate() { return fromdate; }
     public void setFromdate(String fromdate) { this.fromdate = fromdate; }
@@ -29,4 +30,7 @@ public class CustomStatsRequest {
 
     public String getKeyword() { return keyword; }
     public void setKeyword(String keyword) { this.keyword = keyword; }
+
+    public int getYear() { return year; }
+    public void setYear(int year) { this.year = year; }
 }

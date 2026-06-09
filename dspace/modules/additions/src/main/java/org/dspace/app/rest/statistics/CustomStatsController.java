@@ -1,5 +1,6 @@
 package org.dspace.app.rest.statistics;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,8 @@ public class CustomStatsController {
             = DSpaceServicesFactory.getInstance().getConfigurationService();
     
     private static final String SOLR_URL = configurationService.getProperty("solr.server") + "/statistics/";
+    private static final String SEARCH_URL = configurationService.getProperty("solr.server") + "/"
+            + configurationService.getProperty("solr.multicorePrefix", "") + "search";
 
     private String buildQuery(CustomStatsRequest req) {
         String q = "statistics_type:view";
@@ -191,6 +194,66 @@ public class CustomStatsController {
             }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("data", data);
+            return result;
+        }
+    }
+
+    // 6. Items submitted in the current year: total + breakdown by top-level community
+    @PostMapping(value = "/submissions/byyear", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String, Object> submissionsByYear(@RequestBody CustomStatsRequest req) throws Exception {
+        int year = req.getYear() > 0 ? req.getYear() : LocalDate.now().getYear();
+        String start = year + "-01-01T00:00:00Z";
+        String end   = year + "-12-31T23:59:59Z";
+
+        SolrQuery query = new SolrQuery("*:*");
+        query.setRows(0);
+        query.addFilterQuery("search.resourcetype:Item");
+        query.addFilterQuery("dc.date.accessioned_dt:[" + start + " TO " + end + "]");
+        query.addFilterQuery("archived:true");
+        query.addFilterQuery("withdrawn:false");
+        query.setFacet(true);
+        query.addFacetField("location.comm");
+        query.setFacetLimit(-1);
+        query.setFacetMinCount(1);
+
+        try (SolrClient solr = new HttpSolrClient.Builder(SEARCH_URL).build()) {
+            QueryResponse response = solr.query(query);
+            List<Map<String, Object>> communities = new ArrayList<>();
+            FacetField facet = response.getFacetField("location.comm");
+            if (facet != null) {
+                for (FacetField.Count c : facet.getValues()) {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("uuid", c.getName());
+                    entry.put("count", c.getCount());
+                    communities.add(entry);
+                }
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("year", year);
+            result.put("total", response.getResults().getNumFound());
+            result.put("byCommunity", communities);
+            return result;
+        }
+    }
+
+    // 7. Total items in the archive as of a given date (using dc.date.accessioned_dt)
+    @PostMapping(value = "/items/asofdate", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String, Object> itemsAsOfDate(@RequestBody CustomStatsRequest req) throws Exception {
+        // req.getTodate() must be provided in "yyyy-MM-dd" format
+        String cutoff = req.getTodate() + "T23:59:59Z";
+
+        SolrQuery query = new SolrQuery("*:*");
+        query.setRows(0);
+        query.addFilterQuery("search.resourcetype:Item");
+        query.addFilterQuery("dc.date.accessioned_dt:[* TO " + cutoff + "]");
+        query.addFilterQuery("archived:true");
+        query.addFilterQuery("withdrawn:false");
+
+        try (SolrClient solr = new HttpSolrClient.Builder(SEARCH_URL).build()) {
+            QueryResponse response = solr.query(query);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("asOfDate", req.getTodate());
+            result.put("total", response.getResults().getNumFound());
             return result;
         }
     }
