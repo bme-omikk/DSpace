@@ -106,7 +106,7 @@ public class CustomStatsController {
         query.addFilterQuery("time:[" + req.getFromdate() + "T00:00:00Z TO " + req.getTodate() + "T23:59:59Z]");
         query.setFacet(true);
         query.addFacetField(field);
-        query.setFacetLimit(50);
+        query.setFacetLimit(20);
         query.setFacetSort("count");
 
         try (SolrClient solr = new HttpSolrClient.Builder(SOLR_URL).build()) {
@@ -135,7 +135,7 @@ public class CustomStatsController {
         query.addFilterQuery("time:[" + req.getFromdate() + "T00:00:00Z TO " + req.getTodate() + "T23:59:59Z]");
         query.setFacet(true);
         query.addFacetField("city");
-        query.setFacetLimit(50);
+        query.setFacetLimit(10);
         query.setFacetSort("count");
 
         try (SolrClient solr = new HttpSolrClient.Builder(SOLR_URL).build()) {
