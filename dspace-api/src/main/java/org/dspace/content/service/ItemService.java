@@ -10,7 +10,7 @@ package org.dspace.content.service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -246,7 +246,7 @@ public interface ItemService
      * @return an iterator over the items in the collection.
      * @throws SQLException if database error
      */
-    Iterator<Item> findInArchiveOrWithdrawnDiscoverableModifiedSince(Context context, Date since)
+    Iterator<Item> findInArchiveOrWithdrawnDiscoverableModifiedSince(Context context, Instant since)
         throws SQLException;
 
     /**
@@ -256,7 +256,7 @@ public interface ItemService
      * @return an iterator over the items in the collection.
      * @throws SQLException if database error
      */
-    Iterator<Item> findInArchiveOrWithdrawnNonDiscoverableModifiedSince(Context context, Date since)
+    Iterator<Item> findInArchiveOrWithdrawnNonDiscoverableModifiedSince(Context context, Instant since)
         throws SQLException;
 
     /**
@@ -853,7 +853,7 @@ public interface ItemService
      * @return iterator over items
      * @throws SQLException if database error
      */
-    Iterator<Item> findByLastModifiedSince(Context context, Date last)
+    Iterator<Item> findByLastModifiedSince(Context context, Instant last)
         throws SQLException;
 
     /**
@@ -915,23 +915,23 @@ public interface ItemService
     /**
       * finds all items for which the current user has editing rights
       * @param context DSpace context object
+      * @param q search query
       * @param offset page offset
       * @param limit  page size limit
       * @return list of items for which the current user has editing rights
-      * @throws SQLException
       * @throws SearchServiceException
       */
-    List<Item> findItemsWithEdit(Context context, int offset, int limit)
-        throws SQLException, SearchServiceException;
+    List<Item> findItemsWithEdit(Context context, String q, int offset, int limit)
+        throws SearchServiceException;
 
     /**
     * counts all items for which the current user has editing rights
     * @param context DSpace context object
+    * @param q search query
     * @return list of items for which the current user has editing rights
-    * @throws SQLException
     * @throws SearchServiceException
     */
-    int countItemsWithEdit(Context context) throws SQLException, SearchServiceException;
+    int countItemsWithEdit(Context context, String q) throws SearchServiceException;
 
     /**
      * Check if the supplied item is an inprogress submission

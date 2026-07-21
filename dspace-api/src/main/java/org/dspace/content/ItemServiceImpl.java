@@ -10,9 +10,9 @@ package org.dspace.content;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -415,20 +414,20 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     }
 
     @Override
-    public Iterator<Item> findInArchiveOrWithdrawnDiscoverableModifiedSince(Context context, Date since)
+    public Iterator<Item> findInArchiveOrWithdrawnDiscoverableModifiedSince(Context context, Instant since)
         throws SQLException {
         return itemDAO.findAll(context, true, true, true, since);
     }
 
     @Override
-    public Iterator<Item> findInArchiveOrWithdrawnNonDiscoverableModifiedSince(Context context, Date since)
+    public Iterator<Item> findInArchiveOrWithdrawnNonDiscoverableModifiedSince(Context context, Instant since)
         throws SQLException {
         return itemDAO.findAll(context, true, true, false, since);
     }
 
     @Override
     public void updateLastModified(Context context, Item item) throws SQLException, AuthorizeException {
-        item.setLastModified(new Date());
+        item.setLastModified(Instant.now());
         update(context, item);
         //Also fire a modified event since the item HAS been modified
         context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(), null, getIdentifiers(context, item)));
@@ -681,7 +680,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
         if (item.isMetadataModified() || item.isModified()) {
             // Set the last modified date
-            item.setLastModified(new Date());
+            item.setLastModified(Instant.now());
 
             itemDAO.save(context, item);
 
@@ -1013,7 +1012,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         throws SQLException, AuthorizeException {
         // Bundles should inherit from DEFAULT_ITEM_READ so that if the item is readable, the files
         // can be listed (even if they are themselves not readable as per DEFAULT_BITSTREAM_READ or other
-        // policies or embargos applied
+        // policies or embargoes applied
         List<ResourcePolicy> defaultCollectionBundlePolicies = authorizeService
                 .getPoliciesActionFilter(context, collection, Constants.DEFAULT_ITEM_READ);
         // Bitstreams should inherit from DEFAULT_BITSTREAM_READ
@@ -1142,11 +1141,6 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     public void move(Context context, Item item, Collection from, Collection to)
         throws SQLException, AuthorizeException, IOException {
 
-        // If the two collections are the same, do nothing.
-        if (from.equals(to)) {
-            return;
-        }
-
         // Use the normal move method, and default to not inherit permissions
         this.move(context, item, from, to, false);
     }
@@ -1159,6 +1153,11 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         // only do write authorization if user is not an editor
         if (!canEdit(context, item)) {
             authorizeService.authorizeAction(context, item, Constants.WRITE);
+        }
+
+        // If the two collections are the same, do nothing.
+        if (from.equals(to)) {
+            return;
         }
 
         // Move the Item from one Collection to the other
@@ -1261,43 +1260,41 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
      *
      * @param context                    DSpace context
      * @param discoverQuery
+     * @param q                          query string
      * @return                           discovery search result objects
-     * @throws SQLException              if something goes wrong
      * @throws SearchServiceException    if search error
      */
-    private DiscoverResult retrieveItemsWithEdit(Context context, DiscoverQuery discoverQuery)
-        throws SQLException, SearchServiceException {
-        EPerson currentUser = context.getCurrentUser();
-        if (!authorizeService.isAdmin(context)) {
-            String userId = currentUser != null ? "e" + currentUser.getID().toString() : "e";
-            Stream<String> groupIds = groupService.allMemberGroupsSet(context, currentUser).stream()
-                .map(group -> "g" + group.getID());
-            String query = Stream.concat(Stream.of(userId), groupIds)
-                .collect(Collectors.joining(" OR ", "edit:(", ")"));
-            discoverQuery.addFilterQueries(query);
+    private DiscoverResult retrieveItemsWithEdit(Context context, DiscoverQuery discoverQuery, String q)
+        throws SearchServiceException {
+        if (StringUtils.isNotBlank(q)) {
+            // Although not all items will have a metadata dc.title, we use it for autocomplete because it is the
+            // most common. Ideally, we should use a field that all indexed items have
+            q = searchService.formatAutoCompleteQuery(q, "dc.title_sort");
+            discoverQuery.setQuery(q);
         }
+        discoverQuery.addRequiredAuthorization(Constants.WRITE);
         return searchService.search(context, discoverQuery);
     }
 
     @Override
-    public List<Item> findItemsWithEdit(Context context, int offset, int limit)
-        throws SQLException, SearchServiceException {
+    public List<Item> findItemsWithEdit(Context context, String q, int offset, int limit)
+        throws SearchServiceException {
         DiscoverQuery discoverQuery = new DiscoverQuery();
         discoverQuery.setDSpaceObjectFilter(IndexableItem.TYPE);
         discoverQuery.setStart(offset);
         discoverQuery.setMaxResults(limit);
-        DiscoverResult resp = retrieveItemsWithEdit(context, discoverQuery);
+        DiscoverResult resp = retrieveItemsWithEdit(context, discoverQuery, q);
         return resp.getIndexableObjects().stream()
             .map(solrItems -> ((IndexableItem) solrItems).getIndexedObject())
             .collect(Collectors.toList());
     }
 
     @Override
-    public int countItemsWithEdit(Context context) throws SQLException, SearchServiceException {
+    public int countItemsWithEdit(Context context, String q) throws SearchServiceException {
         DiscoverQuery discoverQuery = new DiscoverQuery();
         discoverQuery.setMaxResults(0);
         discoverQuery.setDSpaceObjectFilter(IndexableItem.TYPE);
-        DiscoverResult resp = retrieveItemsWithEdit(context, discoverQuery);
+        DiscoverResult resp = retrieveItemsWithEdit(context, discoverQuery, q);
         return (int) resp.getTotalSearchResults();
     }
 
@@ -1610,7 +1607,7 @@ prevent the generation of resource policy entry values with null dspace_object a
     }
 
     @Override
-    public Iterator<Item> findByLastModifiedSince(Context context, Date last)
+    public Iterator<Item> findByLastModifiedSince(Context context, Instant last)
         throws SQLException {
         return itemDAO.findByLastModifiedSince(context, last);
     }

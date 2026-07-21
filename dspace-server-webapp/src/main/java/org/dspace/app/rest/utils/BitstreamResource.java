@@ -28,6 +28,7 @@ import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.EPersonService;
 import org.dspace.utils.DSpace;
 import org.springframework.core.io.AbstractResource;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.util.DigestUtils;
 
 /**
@@ -38,21 +39,21 @@ import org.springframework.util.DigestUtils;
  */
 public class BitstreamResource extends AbstractResource {
 
-    private static final Logger LOG = LogManager.getLogger(BitstreamResource.class);
+    static final Logger LOG = LogManager.getLogger(BitstreamResource.class);
 
-    private final String name;
-    private final UUID uuid;
-    private final UUID currentUserUUID;
-    private final boolean shouldGenerateCoverPage;
-    private final Set<UUID> currentSpecialGroups;
+    protected final String name;
+    protected final UUID uuid;
+    protected final UUID currentUserUUID;
+    protected final boolean shouldGenerateCoverPage;
+    protected final Set<UUID> currentSpecialGroups;
 
-    private final BitstreamService bitstreamService = ContentServiceFactory.getInstance().getBitstreamService();
-    private final EPersonService ePersonService = EPersonServiceFactory.getInstance().getEPersonService();
-    private final CitationDocumentService citationDocumentService =
+    protected final BitstreamService bitstreamService = ContentServiceFactory.getInstance().getBitstreamService();
+    protected final EPersonService ePersonService = EPersonServiceFactory.getInstance().getEPersonService();
+    protected final CitationDocumentService citationDocumentService =
             new DSpace().getServiceManager()
                     .getServicesByType(CitationDocumentService.class).get(0);
 
-    private BitstreamDocument document;
+    protected BitstreamDocument document;
 
     public BitstreamResource(String name, UUID uuid, UUID currentUserUUID, Set<UUID> currentSpecialGroups,
                              boolean shouldGenerateCoverPage) {
@@ -71,7 +72,7 @@ public class BitstreamResource extends AbstractResource {
      * @param bitstream the pdf for which we want to generate a coverpage
      * @return a byte array containing the cover page
      */
-    private byte[] getCoverpageByteArray(Context context, Bitstream bitstream)
+    byte[] getCoverpageByteArray(Context context, Bitstream bitstream)
             throws IOException, SQLException, AuthorizeException {
         try {
             var citedDocument = citationDocumentService.makeCitedDocument(context, bitstream);
@@ -92,7 +93,7 @@ public class BitstreamResource extends AbstractResource {
     public InputStream getInputStream() throws IOException {
         fetchDocument();
 
-        return document.inputStream();
+        return document.getInputStream();
     }
 
     @Override
@@ -101,7 +102,7 @@ public class BitstreamResource extends AbstractResource {
     }
 
     @Override
-    public long contentLength() {
+    public long contentLength() throws IOException {
         fetchDocument();
 
         return document.length();
@@ -110,10 +111,10 @@ public class BitstreamResource extends AbstractResource {
     public String getChecksum() {
         fetchDocument();
 
-        return document.etag();
+        return document.getEtag();
     }
 
-    private void fetchDocument() {
+    void fetchDocument() {
         if (document != null) {
             return;
         }
@@ -123,13 +124,13 @@ public class BitstreamResource extends AbstractResource {
             if (shouldGenerateCoverPage) {
                 var coverPage = getCoverpageByteArray(context, bitstream);
 
-                this.document = new BitstreamDocument(etag(bitstream),
+                this.document = new BitstreamDocumentCoverPage(etag(bitstream),
                         coverPage.length,
                         new ByteArrayInputStream(coverPage));
             } else {
-                this.document = new BitstreamDocument(bitstream.getChecksum(),
+                this.document = new BitstreamDocumentInputstream(bitstream.getChecksum(),
                         bitstream.getSizeBytes(),
-                        bitstreamService.retrieve(context, bitstream));
+                        bitstream.getID());
             }
         } catch (SQLException | AuthorizeException | IOException e) {
             throw new RuntimeException(e);
@@ -138,7 +139,7 @@ public class BitstreamResource extends AbstractResource {
         LOG.debug("fetched document {} {}", shouldGenerateCoverPage, document);
     }
 
-    private String etag(Bitstream bitstream) {
+    String etag(Bitstream bitstream) {
 
          /* Ideally we would calculate the md5 checksum based on the document with coverpage.
           However it looks like the coverpage generation is not stable (e.g. if invoked twice it will return
@@ -157,13 +158,62 @@ public class BitstreamResource extends AbstractResource {
         return builder.toString();
     }
 
-    private Context initializeContext() throws SQLException {
-        Context context = new Context();
+    Context initializeContext() throws SQLException {
+        Context context = new Context(Context.Mode.READ_ONLY);
         EPerson currentUser = ePersonService.find(context, currentUserUUID);
         context.setCurrentUser(currentUser);
         currentSpecialGroups.forEach(context::setSpecialGroup);
         return context;
     }
 
-    private record BitstreamDocument(String etag, long length, InputStream inputStream) {}
+    protected abstract class BitstreamDocument implements InputStreamSource {
+        private final String etag;
+        private final long length;
+
+        protected BitstreamDocument(String etag, long length) {
+            this.etag = etag;
+            this.length = length;
+        }
+
+        public String getEtag() {
+            return etag;
+        }
+
+        public long length() {
+            return length;
+        }
+    }
+
+    protected class BitstreamDocumentInputstream extends BitstreamDocument {
+        protected final UUID bitstreamUUID;
+
+        public BitstreamDocumentInputstream(String etag, long length, UUID bitstreamUUID) {
+            super(etag, length);
+            this.bitstreamUUID = bitstreamUUID;
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            try (Context context = initializeContext()) {
+                return bitstreamService.retrieve(context, bitstreamService.find(context, bitstreamUUID));
+            } catch (SQLException | AuthorizeException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    protected class BitstreamDocumentCoverPage extends BitstreamDocument {
+        private final ByteArrayInputStream coverpage;
+
+        public BitstreamDocumentCoverPage(String etag, long length, ByteArrayInputStream byteArrayInputStream) {
+            super(etag, length);
+            this.coverpage = byteArrayInputStream;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return coverpage;
+        }
+    }
+
 }

@@ -223,6 +223,7 @@ public class CustomStatsController {
         query.addFacetField("location.comm");
         query.setFacetLimit(-1);
         query.setFacetMinCount(1);
+        query.setFacetSort("location.comm");
 
         try (SolrClient solr = new HttpSolrClient.Builder(SEARCH_URL).build()) {
             QueryResponse response = solr.query(query);

@@ -105,7 +105,7 @@ public abstract class ImageMagickThumbnailFilter extends MediaFilter {
         ConvertCmd cmd = new ConvertCmd();
         IMOperation op = new IMOperation();
         op.autoOrient();
-        op.addImage(f.getAbsolutePath());
+        op.addImage(f.getAbsolutePath() + "[0]");
         op.thumbnail(configurationService.getIntProperty("thumbnail.maxwidth", DEFAULT_WIDTH),
                         configurationService.getIntProperty("thumbnail.maxheight", DEFAULT_HEIGHT));
         op.addImage(f2.getAbsolutePath());
@@ -148,7 +148,7 @@ public abstract class ImageMagickThumbnailFilter extends MediaFilter {
         // the thumbnail because the CropBox is generally used to define the
         // area displayed when a user opens the PDF on a screen, whereas the
         // MediaBox is used for print. Not all PDFs set these correctly, so
-        // we can use ImageMagick's default behavior unless we see an explit
+        // we can use ImageMagick's default behavior unless we see an explicit
         // CropBox. Note: we don't need to do anything special to detect if
         // the CropBox is missing or empty because pdfbox will set it to the
         // same size as the MediaBox if it doesn't exist. Also note that we

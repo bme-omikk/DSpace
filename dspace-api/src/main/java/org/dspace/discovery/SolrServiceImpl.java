@@ -15,13 +15,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.sql.SQLException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -29,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.UUID;
 
 import jakarta.mail.MessagingException;
@@ -462,10 +458,10 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             if (solrSearchCore.getSolr() == null) {
                 return;
             }
-            long start = System.currentTimeMillis();
+            long start = Instant.now().toEpochMilli();
             System.out.println("SOLR Search Optimize -- Process Started:" + start);
             solrSearchCore.getSolr().optimize();
-            long finish = System.currentTimeMillis();
+            long finish = Instant.now().toEpochMilli();
             System.out.println("SOLR Search Optimize -- Process Finished:" + finish);
             System.out.println("SOLR Search Optimize -- Total time taken:" + (finish - start) + " (ms).");
         } catch (SolrServerException | IOException e) {
@@ -516,7 +512,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                         Locale.getDefault(), "internal_error"));
                 email.addRecipient(recipient);
                 email.addArgument(configurationService.getProperty("dspace.ui.url"));
-                email.addArgument(new Date());
+                email.addArgument(Instant.now());
 
                 String stackTrace;
 
@@ -552,7 +548,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
      * @throws IOException            io exception
      * @throws SearchServiceException if something went wrong with querying the solr server
      */
-    protected boolean requiresIndexing(String uniqueId, Date lastModified)
+    protected boolean requiresIndexing(String uniqueId, Instant lastModified)
         throws SQLException, IOException, SearchServiceException {
 
         // Check if we even have a last modified date
@@ -584,17 +580,71 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
             Object value = doc.getFieldValue(SearchUtils.LAST_INDEXED_FIELD);
 
-            if (value instanceof Date) {
-                Date lastIndexed = (Date) value;
+            // If it's a java.util.Date, convert to an Instant
+            if (value instanceof java.util.Date) {
+                value = ((java.util.Date) value).toInstant();
+            }
 
-                if (lastIndexed.before(lastModified)) {
-
+            if (value instanceof Instant lastIndexed) {
+                if (lastIndexed.isBefore(lastModified)) {
                     reindexItem = true;
                 }
             }
         }
 
         return reindexItem || !inIndex;
+    }
+
+    /**
+     * Retrieves from Solr the list of administrable communities and collections for the
+     * current user based on a clause containing the e-person and group IDs.
+     * Builds and returns the "location" query part for these DSO's.
+     *
+     * @param epersonAndGroupClause A Solr filter clause containing one or more IDs combined with OR,
+     *                 e.g. {@code "eUUIDe1 OR gUUIDg2 OR gUUIDg3 OR ..."}.
+     *
+     * @return An empty string if no administrable DSO exists, or a string in the form
+     *         {@code "location:(mUUID1 OR lUUID2 ... )"} when there are administrable DSO's.
+     */
+    @Override
+    public String createLocationQueryForAdministrableDSOs(String epersonAndGroupClause) {
+        StringBuilder locationQuery = new StringBuilder();
+        try {
+
+            SolrQuery solrQuery = new SolrQuery();
+
+            String query = "*:*";
+            solrQuery.setQuery(query);
+            solrQuery.addField(SearchUtils.RESOURCE_ID_FIELD);
+            solrQuery.addField(SearchUtils.RESOURCE_TYPE_FIELD);
+            solrQuery.addFilterQuery("(" + SearchUtils.RESOURCE_TYPE_FIELD + ":" + IndexableCommunity.TYPE + " OR "
+                + SearchUtils.RESOURCE_TYPE_FIELD + ":" + IndexableCollection.TYPE + ")");
+            solrQuery.addFilterQuery("admin:(" + epersonAndGroupClause + ")");
+            solrQuery.setRows(Integer.MAX_VALUE);
+
+            QueryResponse solrQueryResponse = solrSearchCore.getSolr().query(solrQuery,
+                solrSearchCore.REQUEST_METHOD);
+            if (solrQueryResponse != null) {
+                List<String> containerUUIDs = new ArrayList<>();
+                for (SolrDocument doc : solrQueryResponse.getResults()) {
+                    String type = (String) doc.getFieldValue(SearchUtils.RESOURCE_TYPE_FIELD);
+                    String uniqueID = (String) doc.getFieldValue(SearchUtils.RESOURCE_ID_FIELD);
+                    if (IndexableCommunity.TYPE.equals(type)) {
+                        containerUUIDs.add("m" + uniqueID);
+                    } else if (IndexableCollection.TYPE.equals(type)) {
+                        containerUUIDs.add("l" + uniqueID);
+                    }
+                }
+                if (!containerUUIDs.isEmpty()) {
+                    locationQuery.append("location:(");
+                    locationQuery.append(String.join(" OR ", containerUUIDs));
+                    return locationQuery.append(")").toString();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to retrieve administrable communities and collections from Solr:", e);
+        }
+        return "";
     }
 
     @Override
@@ -661,73 +711,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             }
         }
         return locationQuery.toString();
-    }
-
-    /**
-     * Helper function to retrieve a date using a best guess of the potential
-     * date encodings on a field
-     *
-     * @param t the string to be transformed to a date
-     * @return a date if the formatting was successful, null if not able to transform to a date
-     */
-    public Date toDate(String t) {
-        SimpleDateFormat[] dfArr;
-
-        // Choose the likely date formats based on string length
-        switch (t.length()) {
-            // case from 1 to 3 go through adding anyone a single 0. Case 4 define
-            // for all the SimpleDateFormat
-            case 1:
-                t = "0" + t;
-                // fall through
-            case 2:
-                t = "0" + t;
-                // fall through
-            case 3:
-                t = "0" + t;
-                // fall through
-            case 4:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyy")};
-                break;
-            case 6:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyyMM")};
-                break;
-            case 7:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyy-MM")};
-                break;
-            case 8:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyyMMdd"),
-                    new SimpleDateFormat("yyyy MMM")};
-                break;
-            case 10:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyy-MM-dd")};
-                break;
-            case 11:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat("yyyy MMM dd")};
-                break;
-            case 20:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat(
-                    "yyyy-MM-dd'T'HH:mm:ss'Z'")};
-                break;
-            default:
-                dfArr = new SimpleDateFormat[] {new SimpleDateFormat(
-                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")};
-                break;
-        }
-
-        for (SimpleDateFormat df : dfArr) {
-            try {
-                // Parse the date
-                df.setCalendar(Calendar
-                                   .getInstance(TimeZone.getTimeZone("UTC")));
-                df.setLenient(false);
-                return df.parse(t);
-            } catch (ParseException pe) {
-                log.error("Unable to parse date format", pe);
-            }
-        }
-
-        return null;
     }
 
     public String locationToName(Context context, String field, String value) throws SQLException {
@@ -1293,7 +1276,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
         } catch (IOException | SQLException | SolrServerException e) {
             // Any acception that we get ignore it.
             // We do NOT want any crashed to shown by the user
-            log.error(LogHelper.getHeader(context, "Error while quering solr", "Query: " + query), e);
+            log.error(LogHelper.getHeader(context, "Error while querying solr", "Query: " + query), e);
             return new ArrayList<>(0);
         }
     }
@@ -1364,7 +1347,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
         try {
             SolrQuery solrQuery = new SolrQuery();
             //Set the query to handle since this is unique
-            solrQuery.setQuery(SearchUtils.RESOURCE_UNIQUE_ID + ": " + new IndexableItem(item).getUniqueIndexID());
+            solrQuery.setQuery(SearchUtils.RESOURCE_UNIQUE_ID + ":" + new IndexableItem(item).getUniqueIndexID());
             //Only return obj identifier fields in result doc
             solrQuery.setFields(SearchUtils.RESOURCE_TYPE_FIELD, SearchUtils.RESOURCE_ID_FIELD);
             //Add the more like this parameters !
@@ -1422,7 +1405,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
      * Gets the solr field that contains the facet value split on each word break to the end, so can be searched
      * on each word in the value, see {@link org.dspace.discovery.indexobject.ItemIndexFactoryImpl
      * #saveFacetPrefixParts(SolrInputDocument, DiscoverySearchFilter, String, String)}
-     * Ony applicable to facets of type {@link DiscoveryConfigurationParameters.TYPE_TEXT}, otherwise uses the regular
+     * Only applicable to facets of type {@link DiscoveryConfigurationParameters.TYPE_TEXT}, otherwise uses the regular
      * facet filter field
      */
     protected String transformPrefixFacetField(DiscoverFacetField facetFieldConfig, String field,
@@ -1622,6 +1605,27 @@ public class SolrServiceImpl implements SearchService, IndexingService {
         // otherwise you may accidentally BREAK field-based queries (which often
         // rely on special characters to separate the field from the query value)
         return ClientUtils.escapeQueryChars(query);
+    }
+
+    /**
+     * Utility method to format an autocomplete query over a specific field. Combines the escaped query with a
+     * wildcard search over the specified {@code autocompleteField}. This field is typically non-tokenized and
+     * allows recovering searches containing spaces as a single value.
+     *
+     * @param query the user input to search for
+     * @param autocompleteField non-tokenized field used for wildcard autocomplete
+     * @return the constructed Solr query, or the original query if blank
+     */
+    @Override
+    public String formatAutoCompleteQuery(String query, String autocompleteField) {
+        if (StringUtils.isNotBlank(query)) {
+            StringBuilder buildQuery = new StringBuilder();
+            String escapedQuery = escapeQueryChars(query);
+            buildQuery.append("(").append(escapedQuery).append(" OR ").append(autocompleteField).append(":*")
+                .append(escapedQuery).append("*").append(")");
+            return buildQuery.toString();
+        }
+        return query;
     }
 
     @Override

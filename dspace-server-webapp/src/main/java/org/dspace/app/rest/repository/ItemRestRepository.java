@@ -22,6 +22,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.dspace.app.rest.Parameter;
+import org.dspace.app.rest.SearchRestMethod;
 import org.dspace.app.rest.converter.MetadataConverter;
 import org.dspace.app.rest.exception.DSpaceBadRequestException;
 import org.dspace.app.rest.exception.RepositoryMethodNotImplementedException;
@@ -45,6 +47,7 @@ import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.dspace.core.Context;
+import org.dspace.discovery.SearchServiceException;
 import org.dspace.util.UUIDUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -94,6 +97,9 @@ public class ItemRestRepository extends DSpaceObjectRestRepository<Item, ItemRes
 
     @Autowired
     private UriListHandlerService uriListHandlerService;
+
+    @Autowired
+    private ObjectMapper mapper;
 
     public ItemRestRepository(ItemService dsoService) {
         super(dsoService);
@@ -273,7 +279,6 @@ public class ItemRestRepository extends DSpaceObjectRestRepository<Item, ItemRes
     protected ItemRest createAndReturn(Context context) throws AuthorizeException, SQLException {
         HttpServletRequest req = getRequestService().getCurrentRequest().getHttpServletRequest();
         String owningCollectionUuidString = req.getParameter("owningCollection");
-        ObjectMapper mapper = new ObjectMapper();
         ItemRest itemRest = null;
         try {
             ServletInputStream input = req.getInputStream();
@@ -310,7 +315,6 @@ public class ItemRestRepository extends DSpaceObjectRestRepository<Item, ItemRes
                            JsonNode jsonNode)
         throws RepositoryMethodNotImplementedException, SQLException, AuthorizeException {
         HttpServletRequest req = getRequestService().getCurrentRequest().getHttpServletRequest();
-        ObjectMapper mapper = new ObjectMapper();
         ItemRest itemRest = null;
         try {
             itemRest = mapper.readValue(jsonNode.toString(), ItemRest.class);
@@ -355,6 +359,27 @@ public class ItemRestRepository extends DSpaceObjectRestRepository<Item, ItemRes
         context.commit();
 
         return bundle;
+    }
+
+    /**
+     * Method to find the items for which the current user has editing rights.
+     *
+     * @param query    Query string
+     * @param pageable Pagination information
+     * @return Page of Items (REST representation) for which the current user has editing rights
+     * @throws SearchServiceException
+     */
+    @PreAuthorize("hasAuthority('AUTHENTICATED')")
+    @SearchRestMethod(name = "findEditAuthorized")
+    public Page<ItemRest> findEditAuthorized(@Parameter(value = "query") String query,
+                                             Pageable pageable)
+        throws SearchServiceException {
+        Context context = obtainContext();
+        List<Item> items = itemService.findItemsWithEdit(context, query,
+            Math.toIntExact(pageable.getOffset()),
+            Math.toIntExact(pageable.getPageSize()));
+        int tot = itemService.countItemsWithEdit(context, query);
+        return converter.toRestPage(items, pageable, tot, utils.obtainProjection());
     }
 
     @Override
